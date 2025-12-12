@@ -21,49 +21,73 @@ const FieldRenderer: React.FC<FieldRendererProps> = ({
     onChange, 
     error 
 }) => {
-    if (field.type === 'group' && field.repeatable) {
-        const items = Array.isArray(value) ? value : [];
-        const addItem = () => {
-            if (field.maxRepeats && items.length >= field.maxRepeats) return;
-            onChange([...items, {}]);
-        };
-        const removeItem = (idx: number) => {
-            onChange(items.filter((_: any, i: number) => i !== idx));
-        };
-        const updateItem = (idx: number, subFieldKey: string, val: any) => {
-            const newItems = [...items];
-            newItems[idx] = { ...newItems[idx], [subFieldKey]: val };
-            onChange(newItems);
-        };
+    if (field.type === 'group') {
+        if (field.repeatable) {
+            const items = Array.isArray(value) ? value : [];
+            const addItem = () => {
+                if (field.maxRepeats && items.length >= field.maxRepeats) return;
+                onChange([...items, {}]);
+            };
+            const removeItem = (idx: number) => {
+                onChange(items.filter((_: any, i: number) => i !== idx));
+            };
+            const updateItem = (idx: number, subFieldKey: string, val: any) => {
+                const newItems = [...items];
+                newItems[idx] = { ...newItems[idx], [subFieldKey]: val };
+                onChange(newItems);
+            };
 
-        return (
-            <div className="bg-teal-50 p-4 rounded-lg border border-teal-100 mb-4">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-teal-800">{field.label} ({items.length})</h3>
-                    <button type="button" onClick={addItem} className="text-teal-600 flex items-center text-sm font-medium">
-                        <PlusCircle size={16} className="mr-1" /> Add
-                    </button>
-                </div>
-                {items.map((item: any, idx: number) => (
-                    <div key={idx} className="bg-white p-3 rounded shadow-sm mb-3 relative border border-gray-100">
-                        <button type="button" onClick={() => removeItem(idx)} className="absolute top-2 right-2 text-red-400">
-                            <Trash2 size={16} />
+            return (
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100 mb-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-semibold text-teal-800">{field.label} ({items.length})</h3>
+                        <button type="button" onClick={addItem} className="text-teal-600 flex items-center text-sm font-medium">
+                            <PlusCircle size={16} className="mr-1" /> Add
                         </button>
-                        <div className="pr-6 space-y-3">
-                            {field.subFields?.map(sub => (
-                                <FieldRenderer 
-                                    key={sub.id} 
-                                    field={sub} 
-                                    value={item[sub.id]} 
-                                    onChange={(val) => updateItem(idx, sub.id, val)}
-                                />
-                            ))}
-                        </div>
                     </div>
-                ))}
-                {items.length === 0 && <p className="text-xs text-gray-400 italic">No items added.</p>}
-            </div>
-        );
+                    {items.map((item: any, idx: number) => (
+                        <div key={idx} className="bg-white p-3 rounded shadow-sm mb-3 relative border border-gray-100">
+                            <button type="button" onClick={() => removeItem(idx)} className="absolute top-2 right-2 text-red-400">
+                                <Trash2 size={16} />
+                            </button>
+                            <div className="pr-6 space-y-3">
+                                {field.subFields?.map(sub => (
+                                    <FieldRenderer
+                                        key={sub.id}
+                                        field={sub}
+                                        value={item[sub.id]}
+                                        onChange={(val) => updateItem(idx, sub.id, val)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    {items.length === 0 && <p className="text-xs text-gray-400 italic">No items added.</p>}
+                </div>
+            );
+        } else {
+             // Logic for non-repeatable groups
+             const item = value || {};
+
+             return (
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+                    <h3 className="font-semibold text-gray-800 mb-4">{field.label}</h3>
+                    <div className="space-y-3">
+                        {field.subFields?.map(sub => (
+                            <FieldRenderer
+                                key={sub.id}
+                                field={sub}
+                                value={item[sub.id]}
+                                onChange={(val) => {
+                                    const newItem = { ...item, [sub.id]: val };
+                                    onChange(newItem);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </div>
+             );
+        }
     }
 
     if (field.type === 'select') {
@@ -108,14 +132,26 @@ const FieldRenderer: React.FC<FieldRendererProps> = ({
     }
 
     if (field.type === 'radio') {
-         // simplified radio as select for now or custom
+         const uniqueId = React.useId();
          return (
-            <Select
-                label={field.label}
-                options={field.options || []}
-                value={value || ''}
-                onChange={e => onChange(e.target.value)}
-            />
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">{field.label + (field.required ? ' *' : '')}</label>
+                <div className="space-y-2">
+                    {field.options?.map((opt, i) => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="radio"
+                                name={`${uniqueId}-${field.id}`}
+                                className="w-4 h-4 text-teal-600 focus:ring-teal-500 border-gray-300"
+                                checked={value === opt}
+                                onChange={() => onChange(opt)}
+                            />
+                            <span className="text-sm text-gray-700">{opt}</span>
+                        </label>
+                    ))}
+                </div>
+                {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+            </div>
          );
     }
 
