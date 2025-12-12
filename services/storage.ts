@@ -68,8 +68,8 @@ const DEFAULT_FORMS: FormDefinition[] = [
 ];
 
 const DEFAULT_USERS: User[] = [
-  { uid: 'admin-1', email: 'tanveer.pn@gmail.com', role: 'admin', name: 'Tanveer PN', phoneNumber: '9999999999', isAnonymous: false },
-  { uid: 'vol-1', email: 'volunteer@snp.org', role: 'volunteer', name: 'Field Volunteer', phoneNumber: '8888888888', isAnonymous: false }
+  { uid: 'admin-1', email: 'tanveer.pn@gmail.com', password: 'admin123', role: 'admin', name: 'Tanveer PN', phoneNumber: '9999999999', isAnonymous: false },
+  { uid: 'vol-1', email: 'volunteer@snp.org', password: '123456', role: 'volunteer', name: 'Field Volunteer', phoneNumber: '8888888888', isAnonymous: false }
 ];
 
 // --- FORMS ---

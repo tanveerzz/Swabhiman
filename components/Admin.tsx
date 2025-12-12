@@ -21,22 +21,23 @@ const Tabs = ({ active, onChange }: { active: string, onChange: (s: string) => v
 // --- USER MANAGEMENT ---
 const UserTab = ({ currentUser }: { currentUser: User }) => {
     const [users, setUsers] = useState<User[]>(getUsers());
-    const [newUser, setNewUser] = useState<Partial<User>>({ role: 'volunteer', email: '', name: '', phoneNumber: '', photoURL: '' });
+    const [newUser, setNewUser] = useState<Partial<User>>({ role: 'volunteer', email: '', password: '', name: '', phoneNumber: '', photoURL: '' });
 
     const load = () => setUsers(getUsers());
 
     const handleAdd = () => {
-        if (!newUser.email) return alert("Email required");
+        if (!newUser.email || !newUser.password) return alert("Email and Password required");
         saveUser({
             uid: 'u-' + Math.random().toString(36).substr(2, 5),
             email: newUser.email,
+            password: newUser.password,
             role: newUser.role as any,
             name: newUser.name || newUser.email.split('@')[0],
             phoneNumber: newUser.phoneNumber,
             photoURL: newUser.photoURL,
             isAnonymous: false
         });
-        setNewUser({ role: 'volunteer', email: '', name: '', phoneNumber: '', photoURL: '' });
+        setNewUser({ role: 'volunteer', email: '', password: '', name: '', phoneNumber: '', photoURL: '' });
         load();
     };
 
@@ -59,6 +60,13 @@ const UserTab = ({ currentUser }: { currentUser: User }) => {
                         value={newUser.email || ''} 
                         onChange={e => setNewUser({...newUser, email: e.target.value})}
                     />
+                    <input 
+                        className="p-2 border rounded text-sm" 
+                        type="password"
+                        placeholder="Password *" 
+                        value={newUser.password || ''} 
+                        onChange={e => setNewUser({...newUser, password: e.target.value})}
+                    />
                      <input 
                         className="p-2 border rounded text-sm" 
                         placeholder="Name" 
@@ -72,7 +80,7 @@ const UserTab = ({ currentUser }: { currentUser: User }) => {
                         onChange={e => setNewUser({...newUser, phoneNumber: e.target.value})}
                     />
                     <select 
-                        className="p-2 border rounded text-sm"
+                        className="p-2 border rounded text-sm col-span-2"
                         value={newUser.role}
                         onChange={e => setNewUser({...newUser, role: e.target.value as any})}
                     >
@@ -91,7 +99,7 @@ const UserTab = ({ currentUser }: { currentUser: User }) => {
                                 {u.photoURL ? <img src={u.photoURL} alt="p" className="w-full h-full object-cover"/> : <Users size={16} className="text-gray-500" />}
                             </div>
                             <div>
-                                <p className="font-medium text-sm">{u.name || 'User'} <span className="text-gray-400 font-normal">({u.email || 'Guest'})</span></p>
+                                <p className="font-medium text-sm">{u.name || 'User'} <span className="text-gray-400 font-normal">({u.email})</span></p>
                                 <div className="flex gap-2 text-xs text-gray-500">
                                     <span className="uppercase font-semibold text-primary-600">{u.role}</span>
                                     {u.phoneNumber && <span>• {u.phoneNumber}</span>}

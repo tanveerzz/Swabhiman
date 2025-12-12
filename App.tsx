@@ -18,6 +18,7 @@ import { User, Submission, FormDefinition } from './types';
 const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
     const handleLogin = () => {
@@ -25,48 +26,42 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
         setError('');
 
         setTimeout(() => {
-            if (!email.trim()) {
-                setError('Please enter a valid email');
+            if (!email.trim() || !password.trim()) {
+                setError('Please enter email and password');
                 setLoading(false);
                 return;
             }
 
-            // Check against DB or Hardcoded Admin
             const users = getUsers();
             const normalizedEmail = email.trim().toLowerCase();
             let user = users.find(u => u.email?.toLowerCase() === normalizedEmail);
             
-            // Default Admin Check
-            if (normalizedEmail === 'tanveer.pn@gmail.com') {
+            // Hardcoded Bootstrap Admin (if not exists)
+            if (normalizedEmail === 'tanveer.pn@gmail.com' && password === 'admin123') {
                 if (!user) {
                     user = {
                         uid: 'admin-tanveer',
                         email: normalizedEmail,
+                        password: 'admin123',
                         role: 'admin',
                         name: 'Tanveer PN',
                         isAnonymous: false
                     };
-                    saveUser(user); // Ensure he exists in DB
+                    saveUser(user);
                 } else if (user.role !== 'admin') {
-                    // Force admin role if verified email matches (simple mock security)
+                    // Recover admin role
                     user.role = 'admin';
+                    user.password = 'admin123';
                     saveUser(user);
                 }
             }
 
-            // New User -> Volunteer
-            if (!user) {
-                user = { 
-                    uid: 'u-' + Math.random().toString(36).substr(2, 8), 
-                    email: normalizedEmail, 
-                    role: 'volunteer', 
-                    name: normalizedEmail.split('@')[0],
-                    isAnonymous: false 
-                };
-                saveUser(user);
+            if (user && user.password === password) {
+                onLogin(user);
+            } else {
+                setError('Invalid email or password');
+                setLoading(false);
             }
-            
-            onLogin(user);
         }, 800);
     };
 
@@ -82,10 +77,17 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
                 <div>
                     <input 
                         type="email" 
-                        placeholder="Enter Email to Continue" 
-                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        placeholder="Email" 
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none mb-3"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
+                    />
+                     <input 
+                        type="password" 
+                        placeholder="Password" 
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
                     />
                     {error && <p className="text-red-500 text-xs mt-1 ml-1">{error}</p>}
                 </div>
@@ -94,7 +96,7 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
                     {loading ? 'Verifying...' : 'Sign In'}
                 </Button>
             </div>
-            <p className="mt-8 text-xs text-gray-400 text-center">Version 1.2.0</p>
+            <p className="mt-8 text-xs text-gray-400 text-center">Version 1.3.0</p>
         </div>
     );
 };

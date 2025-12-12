@@ -4,6 +4,7 @@ export type UserRole = 'admin' | 'manager' | 'volunteer' | 'guest';
 export interface User {
   uid: string;
   email: string | null;
+  password?: string; // Added for auth
   role: UserRole;
   name?: string;
   isAnonymous?: boolean;
