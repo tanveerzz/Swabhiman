@@ -78,6 +78,21 @@ const FieldRenderer: React.FC<FieldRendererProps> = ({
         );
     }
 
+    if (field.type === 'textarea') {
+        return (
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">{field.label + (field.required ? ' *' : '')}</label>
+                <textarea
+                    className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all ${error ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    rows={4}
+                    value={value || ''}
+                    onChange={e => onChange(e.target.value)}
+                />
+                {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+            </div>
+        );
+    }
+
     if (field.type === 'checkbox') {
         return (
             <div className="mb-4 flex items-center gap-3 p-3 bg-white border rounded-lg">

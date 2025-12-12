@@ -134,6 +134,7 @@ const FieldEditor: React.FC<FieldEditorProps> = ({ field, onChange, onDelete }) 
                     onChange={e => onChange({...field, type: e.target.value as any})}
                 >
                     <option value="text">Text</option>
+                    <option value="textarea">Long Text</option>
                     <option value="number">Number</option>
                     <option value="date">Date</option>
                     <option value="checkbox">Check</option>

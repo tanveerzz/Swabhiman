@@ -6,7 +6,7 @@ import {
     LogOut, History as HistoryIcon, 
     RefreshCw, CheckCircle, AlertCircle, 
     Settings, Shield, Plus, FileText, CloudOff,
-    UserCircle, Edit3
+    UserCircle, Edit3, Calendar
 } from 'lucide-react';
 import { Layout, Button, Input } from './components/Shared';
 import { DynamicFormScreen } from './components/DynamicForm.tsx';
@@ -20,21 +20,11 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
     const [email, setEmail] = useState('');
     const [error, setError] = useState('');
 
-    const handleLogin = (isGuest: boolean) => {
+    const handleLogin = () => {
         setLoading(true);
         setError('');
 
         setTimeout(() => {
-            if (isGuest) {
-                 onLogin({ 
-                    uid: 'guest-' + Math.random().toString(36).substr(2, 5), 
-                    email: null, 
-                    role: 'guest', 
-                    isAnonymous: true 
-                });
-                return;
-            }
-
             if (!email.trim()) {
                 setError('Please enter a valid email');
                 setLoading(false);
@@ -100,18 +90,11 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
                     {error && <p className="text-red-500 text-xs mt-1 ml-1">{error}</p>}
                 </div>
 
-                <Button onClick={() => handleLogin(false)} disabled={loading}>
+                <Button onClick={handleLogin} disabled={loading}>
                     {loading ? 'Verifying...' : 'Sign In'}
                 </Button>
-                
-                <div className="relative flex py-2 items-center">
-                    <div className="flex-grow border-t border-gray-300"></div>
-                    <span className="flex-shrink-0 mx-4 text-gray-400 text-xs">OR</span>
-                    <div className="flex-grow border-t border-gray-300"></div>
-                </div>
-                <Button variant="secondary" onClick={() => handleLogin(true)}>Continue as Guest</Button>
             </div>
-            <p className="mt-8 text-xs text-gray-400 text-center">Version 1.1.0</p>
+            <p className="mt-8 text-xs text-gray-400 text-center">Version 1.2.0</p>
         </div>
     );
 };
@@ -130,6 +113,23 @@ const Dashboard = ({ user, isOnline }: { user: User, isOnline: boolean }) => {
         if (synced.length > 0) setLastSync(synced[0].syncedAt || null);
     }, []);
 
+    // Time-based stats calculations
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    
+    // Start of week (Sunday)
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0,0,0,0);
+    
+    // Start of month
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const countToday = stats.filter(s => s.submittedAt >= todayStart).length;
+    const countWeek = stats.filter(s => s.submittedAt >= weekStart.getTime()).length;
+    const countMonth = stats.filter(s => s.submittedAt >= monthStart).length;
+    const countTotal = stats.length;
+
     const countByForm = (formId: string) => stats.filter(s => s.formId === formId).length;
     
     // Prepare chart data dynamically based on available forms
@@ -139,6 +139,13 @@ const Dashboard = ({ user, isOnline }: { user: User, isOnline: boolean }) => {
         count: countByForm(f.id),
         color: chartColors[i % chartColors.length]
     }));
+
+    const StatCard = ({ label, count, colorClass }: { label: string, count: number, colorClass: string }) => (
+        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex flex-col items-center justify-center">
+            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider">{label}</p>
+            <p className={`text-2xl font-bold ${colorClass}`}>{count}</p>
+        </div>
+    );
 
     return (
         <Layout title="Dashboard" isOnline={isOnline}>
@@ -158,10 +165,22 @@ const Dashboard = ({ user, isOnline }: { user: User, isOnline: boolean }) => {
                 )}
             </div>
 
+            <div className="mb-6">
+                 <div className="flex items-center gap-2 mb-3">
+                    <Calendar size={18} className="text-primary-600" />
+                    <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Submission Summary</h2>
+                 </div>
+                 <div className="grid grid-cols-4 gap-2">
+                    <StatCard label="Today" count={countToday} colorClass="text-green-600" />
+                    <StatCard label="Week" count={countWeek} colorClass="text-blue-600" />
+                    <StatCard label="Month" count={countMonth} colorClass="text-purple-600" />
+                    <StatCard label="Total" count={countTotal} colorClass="text-gray-800" />
+                 </div>
+            </div>
+
             <div className="mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-bold text-gray-800">Overview</h2>
-                    <span className="text-xs text-gray-500">Total: {stats.length}</span>
+                    <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Form Distribution</h2>
                 </div>
                 <div className="h-40 w-full">
                     <ResponsiveContainer width="100%" height="100%">

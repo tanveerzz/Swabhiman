@@ -12,7 +12,7 @@ export interface User {
 }
 
 // Dynamic Form Schema Definitions
-export type FieldType = 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'radio' | 'group' | 'header';
+export type FieldType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox' | 'radio' | 'group' | 'header';
 
 export interface FormField {
   id: string;
