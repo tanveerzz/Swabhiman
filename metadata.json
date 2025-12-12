@@ -1,5 +1,5 @@
 {
-  "name": "SNP Field Data PWA",
+  "name": "Swabhiman",
   "description": "A progressive web application for SNP field volunteers to submit surveillance, registration, ANC, and PNC data. Features offline capability, local syncing, and data visualization.",
   "requestFramePermissions": []
 }

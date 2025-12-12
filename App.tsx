@@ -4,27 +4,80 @@ import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'rechar
 import { 
     Users, Home, Baby, Activity, 
     LogOut, History as HistoryIcon, 
-    RefreshCw, CloudOff, CheckCircle, AlertCircle, 
-    Settings
+    RefreshCw, CheckCircle, AlertCircle, 
+    Settings, Shield, Plus, FileText, CloudOff,
+    UserCircle, Edit3
 } from 'lucide-react';
 import { Layout, Button, Input } from './components/Shared';
-import { MenstrualScreen, HouseScreen, ANCScreen, PNCScreen } from './components/FormScreens';
-import { getSubmissions, syncAllPending, clearData, seedDemoData } from './services/storage';
-import { User, AnySubmission } from './types';
+import { DynamicFormScreen } from './components/DynamicForm.tsx';
+import { AdminDashboard } from './components/Admin.tsx';
+import { getSubmissions, syncAllPending, clearData, seedDemoData, getForms, getUsers, saveUser } from './services/storage';
+import { User, Submission, FormDefinition } from './types';
 
 // --- Auth Component ---
 const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
     const [loading, setLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [error, setError] = useState('');
 
-    const handleGoogle = () => {
+    const handleLogin = (isGuest: boolean) => {
         setLoading(true);
-        setTimeout(() => {
-            onLogin({ uid: 'user-google-123', email: 'volunteer@snp.org', isAnonymous: false });
-        }, 800);
-    };
+        setError('');
 
-    const handleGuest = () => {
-        onLogin({ uid: 'guest-' + Math.random().toString(36).substr(2, 5), email: null, isAnonymous: true });
+        setTimeout(() => {
+            if (isGuest) {
+                 onLogin({ 
+                    uid: 'guest-' + Math.random().toString(36).substr(2, 5), 
+                    email: null, 
+                    role: 'guest', 
+                    isAnonymous: true 
+                });
+                return;
+            }
+
+            if (!email.trim()) {
+                setError('Please enter a valid email');
+                setLoading(false);
+                return;
+            }
+
+            // Check against DB or Hardcoded Admin
+            const users = getUsers();
+            const normalizedEmail = email.trim().toLowerCase();
+            let user = users.find(u => u.email?.toLowerCase() === normalizedEmail);
+            
+            // Default Admin Check
+            if (normalizedEmail === 'tanveer.pn@gmail.com') {
+                if (!user) {
+                    user = {
+                        uid: 'admin-tanveer',
+                        email: normalizedEmail,
+                        role: 'admin',
+                        name: 'Tanveer PN',
+                        isAnonymous: false
+                    };
+                    saveUser(user); // Ensure he exists in DB
+                } else if (user.role !== 'admin') {
+                    // Force admin role if verified email matches (simple mock security)
+                    user.role = 'admin';
+                    saveUser(user);
+                }
+            }
+
+            // New User -> Volunteer
+            if (!user) {
+                user = { 
+                    uid: 'u-' + Math.random().toString(36).substr(2, 8), 
+                    email: normalizedEmail, 
+                    role: 'volunteer', 
+                    name: normalizedEmail.split('@')[0],
+                    isAnonymous: false 
+                };
+                saveUser(user);
+            }
+            
+            onLogin(user);
+        }, 800);
     };
 
     return (
@@ -32,57 +85,79 @@ const AuthScreen = ({ onLogin }: { onLogin: (user: User) => void }) => {
             <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mb-6">
                 <Activity className="text-primary-600" size={40} />
             </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">SNP Field Data</h1>
-            <p className="text-gray-500 text-center mb-8">Secure data collection for field volunteers.</p>
-
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">Swabhiman</h1>
+            <p className="text-gray-500 mb-8 text-center text-sm">Empowering Field Volunteers</p>
+            
             <div className="w-full space-y-4">
-                <Button onClick={handleGoogle} disabled={loading} className="bg-white border text-gray-700 hover:bg-gray-50 shadow-sm">
-                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 mr-2" alt="Google" />
-                    Sign in with Google
+                <div>
+                    <input 
+                        type="email" 
+                        placeholder="Enter Email to Continue" 
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                    />
+                    {error && <p className="text-red-500 text-xs mt-1 ml-1">{error}</p>}
+                </div>
+
+                <Button onClick={() => handleLogin(false)} disabled={loading}>
+                    {loading ? 'Verifying...' : 'Sign In'}
                 </Button>
+                
                 <div className="relative flex py-2 items-center">
                     <div className="flex-grow border-t border-gray-300"></div>
                     <span className="flex-shrink-0 mx-4 text-gray-400 text-xs">OR</span>
                     <div className="flex-grow border-t border-gray-300"></div>
                 </div>
-                <Button variant="secondary" onClick={handleGuest}>Continue as Guest</Button>
+                <Button variant="secondary" onClick={() => handleLogin(true)}>Continue as Guest</Button>
             </div>
-            <p className="mt-8 text-xs text-gray-400">Version 1.0.0 (PWA)</p>
+            <p className="mt-8 text-xs text-gray-400 text-center">Version 1.1.0</p>
         </div>
     );
 };
 
 // --- Dashboard Component ---
 const Dashboard = ({ user, isOnline }: { user: User, isOnline: boolean }) => {
-    const [stats, setStats] = useState<AnySubmission[]>([]);
+    const [stats, setStats] = useState<Submission[]>([]);
+    const [forms, setForms] = useState<FormDefinition[]>([]);
     const [lastSync, setLastSync] = useState<number | null>(null);
 
     useEffect(() => {
         const data = getSubmissions();
         setStats(data);
+        setForms(getForms());
         const synced = data.filter(d => d.status === 'synced').sort((a,b) => (b.syncedAt || 0) - (a.syncedAt || 0));
         if (synced.length > 0) setLastSync(synced[0].syncedAt || null);
     }, []);
 
-    const countByType = (type: string) => stats.filter(s => s.formType === type).length;
-    const chartData = [
-        { name: 'Menst.', count: countByType('menstrual'), color: '#ec4899' },
-        { name: 'House', count: countByType('house'), color: '#3b82f6' },
-        { name: 'ANC', count: countByType('anc'), color: '#8b5cf6' },
-        { name: 'PNC', count: countByType('pnc'), color: '#10b981' },
-    ];
-
-    const MenuCard = ({ title, icon: Icon, to, color }: any) => (
-        <Link to={to} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:shadow-md transition-shadow active:scale-95">
-            <div className={`p-3 rounded-full ${color} bg-opacity-10`}>
-                <Icon size={24} className={color.replace('bg-', 'text-')} />
-            </div>
-            <span className="font-medium text-gray-700 text-sm">{title}</span>
-        </Link>
-    );
+    const countByForm = (formId: string) => stats.filter(s => s.formId === formId).length;
+    
+    // Prepare chart data dynamically based on available forms
+    const chartColors = ['#ec4899', '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#6366f1'];
+    const chartData = forms.slice(0, 5).map((f, i) => ({
+        name: f.title.split(' ')[0], // Short name
+        count: countByForm(f.id),
+        color: chartColors[i % chartColors.length]
+    }));
 
     return (
         <Layout title="Dashboard" isOnline={isOnline}>
+            {/* Header Profile Snippet */}
+            <div className="flex items-center gap-3 mb-6 bg-white p-3 rounded-xl border shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
+                    {user.photoURL ? <img src={user.photoURL} alt="propic" className="w-full h-full object-cover" /> : <UserCircle size={28} className="text-primary-600" />}
+                </div>
+                <div>
+                    <p className="font-bold text-gray-800">{user.name || 'Volunteer'}</p>
+                    <p className="text-xs text-gray-500">{user.email || 'Guest'}</p>
+                </div>
+                {user.role === 'admin' && (
+                    <Link to="/admin" className="ml-auto bg-purple-100 text-purple-700 p-2 rounded-lg text-xs font-bold flex items-center gap-1">
+                        <Shield size={14} /> Admin
+                    </Link>
+                )}
+            </div>
+
             <div className="mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-bold text-gray-800">Overview</h2>
@@ -103,41 +178,40 @@ const Dashboard = ({ user, isOnline }: { user: User, isOnline: boolean }) => {
                 </div>
             </div>
 
-            <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Forms</h3>
+            <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">Start Survey</h3>
             <div className="grid grid-cols-2 gap-4 mb-6">
-                <MenuCard title="Menstrual Surv." icon={Activity} to="/form/menstrual" color="bg-pink-500 text-pink-600" />
-                <MenuCard title="House Reg." icon={Home} to="/form/house" color="bg-blue-500 text-blue-600" />
-                <MenuCard title="ANC Follow-up" icon={Users} to="/form/anc" color="bg-purple-500 text-purple-600" />
-                <MenuCard title="PNC & Baby" icon={Baby} to="/form/pnc" color="bg-emerald-500 text-emerald-600" />
+                {forms.map((f, i) => (
+                    <Link key={f.id} to={`/form/${f.id}`} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:shadow-md transition-shadow active:scale-95 text-center">
+                        <div className={`p-3 rounded-full bg-opacity-10`} style={{ backgroundColor: chartColors[i%chartColors.length] + '20' }}>
+                            <FileText size={24} style={{ color: chartColors[i%chartColors.length] }} />
+                        </div>
+                        <span className="font-medium text-gray-700 text-xs">{f.title}</span>
+                    </Link>
+                ))}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                  <Link to="/history" className="bg-gray-800 text-white p-4 rounded-xl shadow flex items-center justify-between">
-                    <span className="font-medium">History & Sync</span>
+                    <span className="font-medium">History</span>
                     <HistoryIcon size={20} />
                 </Link>
                  <Link to="/settings" className="bg-white border text-gray-700 p-4 rounded-xl shadow-sm flex items-center justify-between">
-                    <span className="font-medium">Settings</span>
+                    <span className="font-medium">Profile</span>
                     <Settings size={20} />
                 </Link>
             </div>
-
-            {lastSync && (
-                <p className="text-center text-xs text-gray-400 mt-6">
-                    Last synced: {new Date(lastSync).toLocaleTimeString()}
-                </p>
-            )}
+            
+            {lastSync && <p className="text-center text-xs text-gray-400 mt-6">Synced: {new Date(lastSync).toLocaleTimeString()}</p>}
         </Layout>
     );
 };
 
-// --- History Screen ---
+// --- History Screen (Updated for Generic Data) ---
 const HistoryScreen = ({ isOnline }: { isOnline: boolean }) => {
-    const [items, setItems] = useState<AnySubmission[]>([]);
+    const [items, setItems] = useState<Submission[]>([]);
     const [syncing, setSyncing] = useState(false);
 
     const load = () => setItems(getSubmissions());
-
     useEffect(load, []);
 
     const handleSync = async () => {
@@ -146,7 +220,7 @@ const HistoryScreen = ({ isOnline }: { isOnline: boolean }) => {
         const count = await syncAllPending();
         setSyncing(false);
         load();
-        if(count > 0) alert(`Synced ${count} items successfully!`);
+        if(count > 0) alert(`Synced ${count} items!`);
     };
 
     const StatusIcon = ({ status }: { status: string }) => {
@@ -159,36 +233,20 @@ const HistoryScreen = ({ isOnline }: { isOnline: boolean }) => {
         <Layout title="History" showBack isOnline={isOnline}>
             <div className="flex justify-between items-center mb-4">
                 <span className="text-sm text-gray-500">{items.length} Submissions</span>
-                <button 
-                    onClick={handleSync} 
-                    disabled={syncing || !isOnline}
-                    className="text-primary-600 text-sm font-semibold flex items-center gap-1 disabled:opacity-50"
-                >
-                    <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
-                    {syncing ? 'Syncing...' : 'Sync Now'}
+                <button onClick={handleSync} disabled={syncing || !isOnline} className="text-primary-600 text-sm font-semibold flex items-center gap-1 disabled:opacity-50">
+                    <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} /> {syncing ? '...' : 'Sync'}
                 </button>
             </div>
-
             <div className="space-y-3">
-                {items.length === 0 && <div className="text-center py-10 text-gray-400">No submissions found.</div>}
                 {items.map(item => (
                     <div key={item.id} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded text-white ${
-                                    item.formType === 'menstrual' ? 'bg-pink-500' :
-                                    item.formType === 'house' ? 'bg-blue-500' :
-                                    item.formType === 'anc' ? 'bg-purple-500' : 'bg-emerald-500'
-                                }`}>
-                                    {item.formType.toUpperCase()}
-                                </span>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded text-white bg-primary-500">{item.formTitle?.substring(0, 10)}</span>
                                 <span className="text-xs text-gray-400">{new Date(item.submittedAt).toLocaleDateString()}</span>
                             </div>
-                            <p className="font-medium text-gray-800 mt-1">
-                                {item.formType === 'house' ? (item as any).headOfFamily : 
-                                 item.formType === 'anc' ? (item as any).ancName :
-                                 item.formType === 'pnc' ? (item as any).motherName :
-                                 (item as any).snpHouseNumber}
+                            <p className="font-medium text-gray-800 mt-1 text-sm">
+                                {item.volunteerCode ? `Vol: ${item.volunteerCode}` : `ID: ${item.id.substring(0,8)}`}
                             </p>
                         </div>
                         <StatusIcon status={item.status} />
@@ -199,28 +257,92 @@ const HistoryScreen = ({ isOnline }: { isOnline: boolean }) => {
     );
 };
 
-// --- Settings Screen ---
-const SettingsScreen = ({ user, onLogout }: { user: User, onLogout: () => void }) => {
-    const handleReset = () => {
-        if(confirm("Delete all local data?")) {
-            clearData();
-            window.location.reload();
-        }
-    }
+// --- Settings/Profile Screen ---
+const SettingsScreen = ({ user, onLogout, onUpdateUser }: { user: User, onLogout: () => void, onUpdateUser: (u: User) => void }) => {
+    const [editMode, setEditMode] = useState(false);
+    const [formData, setFormData] = useState({
+        name: user.name || '',
+        phoneNumber: user.phoneNumber || '',
+        photoURL: user.photoURL || ''
+    });
+
+    const handleSave = () => {
+        const updatedUser = { ...user, ...formData };
+        saveUser(updatedUser);
+        onUpdateUser(updatedUser);
+        setEditMode(false);
+    };
+
     return (
-        <Layout title="Settings" showBack isOnline={true}>
-            <div className="bg-white rounded-lg shadow-sm border p-4 mb-4">
-                <p className="text-sm text-gray-500 mb-1">Signed in as</p>
-                <p className="font-medium">{user.email || 'Guest User'}</p>
-                <p className="text-xs text-gray-400 mt-1">UID: {user.uid}</p>
+        <Layout title="Profile & Settings" showBack isOnline={true}>
+            <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+                <div className="flex flex-col items-center mb-6">
+                    <div className="w-24 h-24 rounded-full bg-gray-200 mb-3 overflow-hidden relative group">
+                        {formData.photoURL ? (
+                            <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-primary-50 text-primary-300">
+                                <UserCircle size={48} />
+                            </div>
+                        )}
+                        {editMode && (
+                            <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+                                <span className="text-white text-xs">URL</span>
+                            </div>
+                        )}
+                    </div>
+                    {!editMode ? (
+                        <>
+                            <h2 className="text-xl font-bold text-gray-800">{user.name || 'Volunteer'}</h2>
+                            <p className="text-gray-500">{user.email || 'Guest'}</p>
+                            <span className="text-xs mt-2 px-2 py-1 bg-gray-100 rounded uppercase font-semibold text-gray-500">{user.role}</span>
+                        </>
+                    ) : (
+                        <div className="w-full space-y-3">
+                             <Input 
+                                label="Photo URL" 
+                                value={formData.photoURL} 
+                                onChange={e => setFormData({...formData, photoURL: e.target.value})} 
+                                placeholder="https://..."
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {editMode ? (
+                    <div className="space-y-4">
+                        <Input 
+                            label="Full Name" 
+                            value={formData.name} 
+                            onChange={e => setFormData({...formData, name: e.target.value})} 
+                        />
+                        <Input 
+                            label="Phone Number" 
+                            value={formData.phoneNumber} 
+                            onChange={e => setFormData({...formData, phoneNumber: e.target.value})} 
+                        />
+                        <div className="flex gap-3 mt-4">
+                            <Button variant="outline" onClick={() => setEditMode(false)}>Cancel</Button>
+                            <Button onClick={handleSave}>Save Profile</Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">Phone</span>
+                            <span className="font-medium">{user.phoneNumber || '-'}</span>
+                        </div>
+                         <Button variant="outline" onClick={() => setEditMode(true)} className="mt-4">
+                            <Edit3 size={16} /> Edit Profile
+                        </Button>
+                    </div>
+                )}
             </div>
 
             <div className="space-y-3">
                 <Button variant="outline" onClick={() => seedDemoData(user.uid)}>Load Demo Data</Button>
-                <Button variant="outline" onClick={handleReset} className="!text-red-600 !border-red-200">Clear Local Storage</Button>
-                <Button variant="secondary" onClick={onLogout}>
-                    <LogOut size={18} /> Sign Out
-                </Button>
+                <Button variant="outline" onClick={clearData} className="!text-red-600 !border-red-200">Clear Local Storage</Button>
+                <Button variant="secondary" onClick={onLogout}><LogOut size={18} /> Sign Out</Button>
             </div>
         </Layout>
     )
@@ -230,47 +352,61 @@ const SettingsScreen = ({ user, onLogout }: { user: User, onLogout: () => void }
 const AppContent = () => {
     const [user, setUser] = useState<User | null>(null);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const handleStatus = () => setIsOnline(navigator.onLine);
         window.addEventListener('online', handleStatus);
         window.addEventListener('offline', handleStatus);
-        
-        // Check session
         const storedUser = localStorage.getItem('snp_user');
-        if (storedUser) setUser(JSON.parse(storedUser));
-
+        
+        if (storedUser) {
+            const u = JSON.parse(storedUser);
+            setUser(u);
+            // Immediate redirect for admin roles if on root
+            if (window.location.hash === '#/' && (u.role === 'admin' || u.role === 'manager')) {
+                navigate('/admin', { replace: true });
+            }
+        }
+        
         return () => {
             window.removeEventListener('online', handleStatus);
             window.removeEventListener('offline', handleStatus);
         };
-    }, []);
+    }, [navigate]); // Added navigate dependency
 
     const handleLogin = (u: User) => {
         setUser(u);
         localStorage.setItem('snp_user', JSON.stringify(u));
+        if (u.role === 'admin' || u.role === 'manager') {
+            navigate('/admin', { replace: true });
+        } else {
+            navigate('/');
+        }
     };
 
     const handleLogout = () => {
         setUser(null);
         localStorage.removeItem('snp_user');
+        navigate('/');
     };
 
-    if (!user) {
-        return <AuthScreen onLogin={handleLogin} />;
-    }
+    const handleUpdateUser = (updated: User) => {
+        setUser(updated);
+        localStorage.setItem('snp_user', JSON.stringify(updated));
+    };
+
+    if (!user) return <AuthScreen onLogin={handleLogin} />;
 
     return (
         <Routes>
             <Route path="/" element={<Dashboard user={user} isOnline={isOnline} />} />
             <Route path="/history" element={<HistoryScreen isOnline={isOnline} />} />
-            <Route path="/settings" element={<SettingsScreen user={user} onLogout={handleLogout} />} />
-            
-            {/* Forms */}
-            <Route path="/form/menstrual" element={<MenstrualScreen user={user} isOnline={isOnline} />} />
-            <Route path="/form/house" element={<HouseScreen user={user} isOnline={isOnline} />} />
-            <Route path="/form/anc" element={<ANCScreen user={user} isOnline={isOnline} />} />
-            <Route path="/form/pnc" element={<PNCScreen user={user} isOnline={isOnline} />} />
+            <Route path="/settings" element={<SettingsScreen user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />} />
+            {/* Admin Route */}
+            <Route path="/admin" element={(user.role === 'admin' || user.role === 'manager') ? <AdminDashboard currentUser={user} isOnline={isOnline} onLogout={handleLogout} /> : <div className="p-4">Access Denied</div>} />
+            {/* Dynamic Form Route */}
+            <Route path="/form/:formId" element={<DynamicFormScreen user={user} isOnline={isOnline} />} />
         </Routes>
     );
 };
