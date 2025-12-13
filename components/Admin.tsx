@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Button, Input, Select } from './Shared';
 import { User, FormDefinition, FormField, Submission } from '../types';
-import { getUsers, saveUser, deleteUser, getForms, saveForm, deleteForm, getSubmissions } from '../services/storage';
-import { Trash2, Edit2, Plus, Users, FileText, BarChart2, ShieldAlert, LogOut } from 'lucide-react';
+import { getUsers, saveUser, deleteUser, getForms, saveForm, deleteForm, getSubmissions, getCloudUrl, setCloudUrl, syncMetadataFromCloud } from '../services/storage';
+import { Trash2, Edit2, Plus, Users, FileText, BarChart2, ShieldAlert, LogOut, Database, CloudLightning } from 'lucide-react';
 
 const Tabs = ({ active, onChange }: { active: string, onChange: (s: string) => void }) => (
-    <div className="flex border-b mb-4">
-        {['Users', 'Forms', 'Data'].map(t => (
+    <div className="flex border-b mb-4 overflow-x-auto">
+        {['Users', 'Forms', 'Data', 'Config'].map(t => (
             <button 
                 key={t}
                 onClick={() => onChange(t)}
-                className={`flex-1 py-2 text-sm font-medium ${active === t ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-500'}`}
+                className={`flex-1 py-2 px-3 text-sm font-medium whitespace-nowrap ${active === t ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-500'}`}
             >
                 {t}
             </button>
@@ -285,6 +285,60 @@ const DataTab = () => {
     );
 };
 
+// --- CONFIG TAB ---
+const ConfigTab = () => {
+    const [url, setUrl] = useState(getCloudUrl());
+    const [saved, setSaved] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const handleSave = () => {
+        setCloudUrl(url);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+    };
+
+    const handleSyncMeta = async () => {
+        setLoading(true);
+        const success = await syncMetadataFromCloud();
+        setLoading(false);
+        if(success) alert("Forms and Users updated from Cloud!");
+        else alert("Failed to fetch metadata. Check URL.");
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-blue-50 p-4 rounded border border-blue-100">
+                <h4 className="font-bold text-blue-800 flex items-center gap-2 mb-2">
+                    <Database size={18} /> Google Sheets Database
+                </h4>
+                <p className="text-sm text-blue-700 mb-4">
+                    Connect this app to a Google Sheet to store submissions and manage configuration centrally.
+                </p>
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-600">Google Apps Script Web App URL</label>
+                    <input 
+                        className="w-full p-2 border rounded text-sm font-mono"
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                        value={url}
+                        onChange={e => setUrl(e.target.value)}
+                    />
+                    <Button onClick={handleSave} className="py-2">
+                        {saved ? 'Saved!' : 'Save Configuration'}
+                    </Button>
+                </div>
+            </div>
+
+            <div className="bg-white p-4 rounded border">
+                <h4 className="font-bold text-gray-800 mb-2">Cloud Operations</h4>
+                <p className="text-xs text-gray-500 mb-4">Pull latest User accounts and Form definitions from the sheet.</p>
+                <Button variant="outline" onClick={handleSyncMeta} disabled={loading || !url}>
+                    {loading ? 'Syncing...' : 'Pull Config from Sheet'}
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 export const AdminDashboard = ({ isOnline, currentUser, onLogout }: { isOnline: boolean, currentUser: User, onLogout: () => void }) => {
     const [tab, setTab] = useState('Users');
     
@@ -307,6 +361,7 @@ export const AdminDashboard = ({ isOnline, currentUser, onLogout }: { isOnline: 
             {tab === 'Users' && <UserTab currentUser={currentUser} />}
             {tab === 'Forms' && <FormsTab currentUser={currentUser} />}
             {tab === 'Data' && <DataTab />}
+            {tab === 'Config' && <ConfigTab />}
         </Layout>
     );
 };

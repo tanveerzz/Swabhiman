@@ -3,8 +3,13 @@ import { Submission, SubmissionStatus, FormDefinition, User } from '../types';
 const KEYS = {
   SUBMISSIONS: 'snp_submissions',
   FORMS: 'snp_forms',
-  USERS: 'snp_users'
+  USERS: 'snp_users',
+  CLOUD_URL: 'snp_cloud_url'
 };
+
+// --- CONFIG ---
+export const getCloudUrl = () => localStorage.getItem(KEYS.CLOUD_URL) || '';
+export const setCloudUrl = (url: string) => localStorage.setItem(KEYS.CLOUD_URL, url);
 
 // --- DEFAULT SEEDS ---
 
@@ -140,22 +145,93 @@ export const updateSubmissionStatus = (id: string, status: SubmissionStatus): vo
 };
 
 export const syncAllPending = async (): Promise<number> => {
+  const url = getCloudUrl();
   const all = getSubmissions();
   const pending = all.filter(s => s.status === 'pending' || s.status === 'failed');
+
   if (pending.length === 0) return 0;
-  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  // Local Fallback if no URL configured
+  if (!url) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const newSubmissions = all.map(s => {
+        if (s.status === 'pending' || s.status === 'failed') {
+          return { ...s, status: 'synced' as SubmissionStatus, syncedAt: Date.now() };
+        }
+        return s;
+      });
+      localStorage.setItem(KEYS.SUBMISSIONS, JSON.stringify(newSubmissions));
+      return pending.length;
+  }
   
+  // Cloud Sync
   let successCount = 0;
-  const newSubmissions = all.map(s => {
-    if (s.status === 'pending' || s.status === 'failed') {
-       successCount++;
-       return { ...s, status: 'synced' as SubmissionStatus, syncedAt: Date.now() };
-    }
-    return s;
-  });
-  localStorage.setItem(KEYS.SUBMISSIONS, JSON.stringify(newSubmissions));
+  const updatedAll = [...all];
+
+  for (const sub of pending) {
+      try {
+          const res = await fetch(url, {
+              method: 'POST',
+              mode: 'cors', // Important for Apps Script
+              headers: {
+                  'Content-Type': 'text/plain' // Avoids OPTIONS preflight
+              },
+              body: JSON.stringify({
+                  action: 'submit',
+                  submission: sub
+              })
+          });
+          
+          const text = await res.text();
+          // Apps Script usually redirects or returns JSON.
+          // We try to parse JSON
+          let json;
+          try { json = JSON.parse(text); } catch(e) { json = { status: 'unknown', text }; }
+
+          if (json.status === 'success') {
+             const idx = updatedAll.findIndex(s => s.id === sub.id);
+             if (idx !== -1) {
+                 updatedAll[idx] = { ...sub, status: 'synced', syncedAt: Date.now() };
+                 successCount++;
+             }
+          } else {
+             throw new Error(json.message || 'Sync failed');
+          }
+      } catch (err) {
+          console.error("Sync Error for " + sub.id, err);
+          const idx = updatedAll.findIndex(s => s.id === sub.id);
+          if (idx !== -1) updatedAll[idx] = { ...sub, status: 'failed' };
+      }
+  }
+
+  localStorage.setItem(KEYS.SUBMISSIONS, JSON.stringify(updatedAll));
   return successCount;
 };
+
+// New function to pull config (Users/Forms) from Sheet
+export const syncMetadataFromCloud = async (): Promise<boolean> => {
+    const url = getCloudUrl();
+    if (!url) return false;
+
+    try {
+        const res = await fetch(`${url}?action=metadata`, { mode: 'cors' });
+        const json = await res.json();
+        
+        if (json.status === 'success') {
+            if (json.forms && Array.isArray(json.forms)) {
+                localStorage.setItem(KEYS.FORMS, JSON.stringify(json.forms));
+            }
+            if (json.users && Array.isArray(json.users)) {
+                // Merge users to not lose current session potentially
+                localStorage.setItem(KEYS.USERS, JSON.stringify(json.users));
+            }
+            return true;
+        }
+    } catch (e) {
+        console.error("Metadata sync failed", e);
+    }
+    return false;
+}
 
 export const clearData = () => {
     localStorage.removeItem(KEYS.SUBMISSIONS);
@@ -165,9 +241,7 @@ export const clearData = () => {
 }
 
 export const seedDemoData = (userId: string) => {
-    // Seed forms first
     getForms(); 
-    
     const demoData: Submission[] = [
         {
             id: 'demo-1',
